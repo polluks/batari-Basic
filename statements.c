@@ -10,6 +10,54 @@
 int includesfile_already_done = 0;
 int decimal = 0;
 
+int condpart = 0;
+int last_bank = 0;              // last bank when bs is enabled (0 for 2k/4k)
+int bank = 1;                   // current bank: 1 or 2 for 8k
+int bs = 0;                     // bankswtiching type; 0=none
+int ongosub = 0;
+int superchip = 0;
+int optimization = 0;
+int smartbranching = 0;
+int line = 0;
+int numfixpoint44 = 0;
+int numfixpoint88 = 0;
+int ROMpf = 0;
+int ors = 0;
+int numjsrs = 0;
+int numfors = 0;
+int numthens = 0;
+int numelses = 0;
+int numredefvars = 0;
+int numconstants = 0;
+int branchtargetnumber = 0;
+int doingfunction = 0;
+int sprite_index = 0;
+int multisprite = 0;
+int lifekernel = 0;
+int playfield_number = 0;
+int extra = 0;
+int extralabel = 0;
+int extraactive = 0;
+int macroactive = 0;
+int kernel_options = 0;
+int pfcolorindexsave = 0;
+int pfcolornumber = 0;
+
+int pfdata[50][256];
+char sprite_data[5000][50];
+int playfield_index[50];
+char includespath[500];
+char redefined_variables[500][100];
+char constants[MAXCONSTANTS][100];
+char forvar[50][50];
+char forlabel[50][50];
+char forstep[50][50];
+char forend[50][50];
+char fixpoint44[2][50][50];
+char fixpoint88[2][50][50];
+char user_includes[1000];
+char Areg[50];
+
 void currdir_foundmsg(char *foundfile)
 {
     fprintf(stderr, "User-defined %s found in the current directory\n", foundfile);
@@ -148,14 +196,14 @@ void do_stack(char **statement)
     	printf("	lda #(>(STACKbegin+%s)) & $0F\n", statement[2]);
     	printf("	STA DF7HI\n");
     } else {
-        printf("LDA #<STACKbegin");
-        printf("clc");
-        printf("adc %s", statement[2]);
-        printf("STA DF7LOW");
-        printf("LDA #>STACKbegin");
-        printf("adc #0");
-        printf("AND #$0F");
-        printf("STA DF7HI");
+        printf("LDA #<STACKbegin\n");
+        printf("clc\n");
+        printf("adc %s\n", statement[2]);
+        printf("STA DF7LOW\n");
+        printf("LDA #>STACKbegin\n");
+        printf("adc #0\n");
+        printf("AND #$0F\n");
+        printf("STA DF7HI\n");
     }
 }
 
@@ -1470,6 +1518,49 @@ void mul(char **statement, int bits)
 	    printf("	asl\n");
 	    if (bits == 16)
 		printf("  rol temp1\n");
+	    printf("	clc\n");
+	    printf("	adc ");
+	    printimmed(statement[4]);
+	    printf("%s\n", statement[4]);
+	    if (bits == 16)
+	    {
+		printf("	tax\n");
+		printf("	lda temp1\n");
+		printf("	adc #0\n");
+		printf("	sta temp1\n");
+		printf("	txa\n");
+	    }
+	    printf("	asl\n");
+	    if (bits == 16)
+		printf("  rol temp1\n");
+	    printf("	clc\n");
+	    printf("	adc ");
+	    printimmed(statement[4]);
+	    printf("%s\n", statement[4]);
+	    if (bits == 16)
+	    {
+		printf("	tax\n");
+		printf("	lda temp1\n");
+		printf("	adc #0\n");
+		printf("	sta temp1\n");
+		printf("	txa\n");
+	    }
+	    tempstorage = 1;
+	}
+	else if (!(multiplicand % 9))
+	{
+	    if (tempstorage)
+	    {
+		strcpy(statement[4], "temp2");
+		printf("	sta temp2\n");
+	    }
+	    multiplicand /= 9;
+	    printf("	asl\n");
+	    if (bits == 16)
+		printf("  rol temp1\n");
+	    printf("	asl\n");
+	    if (bits == 16)
+		printf("  rol temp1\n");
 	    printf("	asl\n");
 	    if (bits == 16)
 		printf("  rol temp1\n");
@@ -1891,7 +1982,7 @@ void sdata(char **statement)
 
 void data(char **statement)
 {
-    char data[200];
+    char data[201];
     char **data_length;
     char **deallocdata_length;
     int i, j;
@@ -1919,6 +2010,12 @@ void data(char **statement)
 	    exit(1);
 	}
 	line++;
+	data[200]=0;
+	if (strlen(data)>=199)
+	{
+	    prerror("Error: Maximum line length exceeded in data statement\n");
+	    exit(1);
+	}
 	if (!strncmp(data, "end\0", 3))
 	    break;
 	remove_trailing_commas(data);
@@ -2005,6 +2102,8 @@ void ongoto(char **statement)
 
 void dofor(char **statement)
 {
+    removeCR(statement[6]);
+
     if (strcmp(statement[4], Areg))
     {
 	printf("	LDA ");
@@ -5449,7 +5548,7 @@ int isimmed(char *value)
 {
     // search queue of constants
     int i;
-    // removeCR(value);
+    removeCR(value);
     for (i = 0; i < numconstants; ++i)
     {
 	if (!strcmp(value, constants[i]))
